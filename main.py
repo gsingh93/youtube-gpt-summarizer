@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 
-import tiktoken
-from openai import OpenAI
-
-
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
-    encoding = tiktoken.encoding_for_model(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
+import logging
 import os
 import os.path
 import re
@@ -18,18 +9,22 @@ import sys
 from argparse import ArgumentParser
 from email.message import EmailMessage
 
+import tiktoken
 from googleapiclient.discovery import build
-# from llama_index.core import (
-#     Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex,
-#     load_index_from_storage
-# )
-# from llama_index.core.embeddings import resolve_embed_model
-# from llama_index.llms.ollama import Ollama
-# from llama_index.llms.openai import OpenAI
+from openai import OpenAI
 from youtube_transcript_api import YouTubeTranscriptApi
 
-youtube = None
+logging.basicConfig()
+logger = logging.getLogger(os.path.basename(__file__))
+
+youtube = build('youtube', 'v3', developerKey=os.environ['YOUTUBE_API_KEY'])
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.encoding_for_model(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 
 def parse_args():
@@ -38,11 +33,14 @@ def parse_args():
     parser.add_argument('-e', '--email')
     parser.add_argument('-p', '--password')
 
-    # TODO: Make these mutually exclusive
-    parser.add_argument('video_url', nargs='?')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-u', '--video_url')
+    group.add_argument('-c', '--channel')
+
     parser.add_argument(
-        '-c',
-        '--channel_id',
+        '--log-level',
+        choices=['debug', 'info', 'warning', 'error', 'critical'],
+        default='info',
     )
 
     return parser.parse_args()
@@ -58,16 +56,12 @@ def get_video_title(video_id):
 
         return title, channel_title
     else:
-        return None  # Video ID not found or private video
+        return None
 
 
-def get_last_vids(channel_id, num_vids):
-    # TODO: Allow the user to pass in a channel name instead
-    # TODO: don't hardcode the channel name
-    request = youtube.channels().list(
-        part="id",
-        forUsername="BlackHatOfficialYT"  # Use the username here, without '@'
-    )
+def get_last_vids(channel_handle, num_vids):
+    channel_handle = channel_handle.replace('@', '')
+    request = youtube.channels().list(part="id", forUsername=channel_handle)
     response = request.execute()
     channel_id = response['items'][0]['id']
 
@@ -100,29 +94,22 @@ def download_transcript(video_id):
     return text
 
 
-# local = False
-# if local:
-#     Settings.embed_model = resolve_embed_model("local:BAAI/bge-small-en-v1.5")
-#     Settings.llm = Ollama(model="mistral", request_timeout=30.0)
-# else:
-#     Settings.llm = OpenAI(temperature=0, model="gpt-4")
-
-
 def main():
     args = parse_args()
+    logger.setLevel(getattr(logging, args.log_level.upper()))
 
     if args.video_url is not None:
         video_id = extract_video_id(args.video_url)
         if video_id is None:
-            print("Failed to parse video ID")
+            logger.error("Failed to parse video ID")
             return
 
         title, channel_title = get_video_title(video_id)
         videos = [title, channel_title, video_id]
-    elif args.channel_id is not None:
-        videos = get_last_vids(args.channel_id, 3)
+    elif args.channel is not None:
+        videos = get_last_vids(args.channel, 1)
     else:
-        print("Must specify either video URL or channel ID")
+        logger.error("Must specify either video URL or channel ID")
         return
 
     print(videos)
@@ -131,36 +118,22 @@ def main():
     for _, _, video_id in videos:
         transcript_path = f'./data/{video_id}.txt'
         if not os.path.exists(transcript_path):
-            print(f"Downloading transcript for video ID {video_id}")
+            logger.info(f"Downloading transcript for video ID {video_id}")
             transcript = download_transcript(video_id)
             with open(transcript_path, 'w') as f:
-                # f.write(
-                #     f"The following text is the transcript from the YouTube video with ID {video_id}"
-                # )
-                # if title is not None:
-                #     f.write(f" and title '{title}'")
-                # f.write("\n\n")
                 f.write(transcript)
-
-    # # TODO: we're constantly adding files, how do we only add the new ones?
-    # if not os.path.exists(PERSIST_DIR):
-    #     documents = SimpleDirectoryReader("data").load_data()
-    #     index = VectorStoreIndex.from_documents(documents)
-    #     index.storage_context.persist(persist_dir=PERSIST_DIR)
-    # else:
-    #     storage_context = StorageContext.from_defaults(persist_dir=PERSIST_DIR)
-    #     index = load_index_from_storage(storage_context)
+        else:
+            logger.info(
+                f"Transcript for video ID {video_id} already exists, skipping download"
+            )
 
     if args.download_only:
         return
 
-    # index = VectorStoreIndex()
-    # query_engine = index.as_query_engine()
-
     email_body = []
     for title, channel_title, video_id in videos:
         if title is None:
-            print(f"Warning: title not found for video ID {video_id}, skipping")
+            logger.warning(f"Title not found for video ID {video_id}, skipping")
             continue
 
         query = f"The following text is the transcript of a YouTube video titled '{title}' from the channel '{channel_title}'. Summarize the content of the video using the provided transcript:\n\n"
@@ -169,7 +142,7 @@ def main():
         with open(transcript_path) as f:
             query += f.read()
 
-        print(
+        logger.info(
             "Sending query with {0} tokens".format(
                 num_tokens_from_string(query, 'gpt-4-turbo')
             )
@@ -192,17 +165,22 @@ def main():
 
         content = chat_completion.choices[0].message.content
 
-        email_body.append(f"Summary for video '{title}':\n\n{content}")
-        print(f"Summary for video '{title}':\n\n{content}\n\n")
+        email_body.append(f"<h2>Summary for video '{title}':</h2>\n\n{content}")
+        logger.debug(f"Summary for video '{title}':\n\n{content}\n\n")
 
     if args.email is not None:
         if args.password is None:
-            print("Email password not provided")
+            logger.error("Email password not provided")
             return
 
         send_email(
-            args.email, args.password, args.email, args.email,
-            "YouTube video summaries", '\n\n'.join(email_body)
+            args.email,
+            args.password,
+            args.email,
+            args.email,
+            "YouTube video summaries",
+            '\n\n'.join(email_body),
+            content_type='html'
         )
 
 
@@ -213,6 +191,7 @@ def send_email(
     to_email,
     subject,
     content,
+    content_type='plain',
     smtp_server='smtp.gmail.com',
     port=587
 ):
@@ -220,7 +199,12 @@ def send_email(
     email['From'] = from_email
     email['To'] = to_email
     email['Subject'] = subject
-    email.set_content(content)
+
+    if content_type == 'html':
+        email.set_content("HTML support required to see email")
+        email.add_alternative(content, subtype='html')
+    else:
+        email.set_content(content)
 
     server = smtplib.SMTP(smtp_server, port)
     server.starttls()
@@ -233,5 +217,4 @@ def send_email(
 
 
 if __name__ == '__main__':
-    youtube = build('youtube', 'v3', developerKey=os.environ['YOUTUBE_API_KEY'])
     main()
