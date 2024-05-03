@@ -4,6 +4,7 @@ import logging
 import os
 import os.path
 import re
+import shelve
 import smtplib
 import sys
 from argparse import ArgumentParser
@@ -134,6 +135,12 @@ def main():
 
     email_body = []
     for title, channel_title, video_id in videos:
+        with shelve.open("videos.db") as db:
+            if video_id in db:
+                logger.info(f"Video ID {video_id} already summarized, skipping")
+                continue
+            db[video_id] = (video_id, title, channel_title)
+
         if title is None:
             logger.warning(f"Title not found for video ID {video_id}, skipping")
             continue
