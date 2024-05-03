@@ -35,8 +35,10 @@ def parse_args():
     parser.add_argument("-p", "--password")
 
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-u', '--video_url')
-    group.add_argument('-c', '--channel')
+    group.add_argument("-v", "--video", action="append")
+    group.add_argument("-c", "--channel", action="append")
+
+    parser.add_argument("-n", "--num", default=1)
 
     parser.add_argument(
         "--log-level",
@@ -51,21 +53,25 @@ def get_video_title(video_id):
     request = youtube.videos().list(part="snippet", id=video_id)
     response = request.execute()
 
-    if response['items']:
-        title = response['items'][0]['snippet']['title']
-        channel_title = response['items'][0]['snippet']['channelTitle']
+    if response["items"]:
+        title = response["items"][0]["snippet"]["title"]
+        channel_title = response["items"][0]["snippet"]["channelTitle"]
 
         return title, channel_title
     else:
         return None
 
 
-def get_last_vids(channel_handle, num_vids):
-    channel_handle = channel_handle.replace('@', '')
-    request = youtube.channels().list(part="id", forUsername=channel_handle)
+def get_channel_id(channel_handle):
+    request = youtube.channels().list(part="id", forHandle=channel_handle)
     response = request.execute()
-    channel_id = response['items'][0]['id']
+    if response["pageInfo"]["totalResults"] == 0:
+        return None
+    else:
+        return response["items"][0]["id"]
 
+
+def get_last_vids(channel_id, num_vids):
     request = youtube.search().list(
         part="snippet", channelId=channel_id, order="date", maxResults=num_vids
     )
@@ -99,23 +105,46 @@ def download_transcript(video_id):
 
 def main():
     args = parse_args()
-    logger.setLevel(getattr(logging, args.log_level.upper()))
-
-    if args.video_url is not None:
-        video_id = extract_video_id(args.video_url)
-        if video_id is None:
-            logger.error("Failed to parse video ID")
-            return
-
-        title, channel_title = get_video_title(video_id)
-        videos = [title, channel_title, video_id]
-    elif args.channel is not None:
-        videos = get_last_vids(args.channel, 1)
-    else:
-        logger.error("Must specify either video URL or channel ID")
+    if args.num is not None and args.channel is None:
+        logger.error("Must specify at least one channel handle when using -n/--num")
         return
 
-    print(videos)
+    logger.setLevel(getattr(logging, args.log_level.upper()))
+
+    if args.video is not None:
+        videos = []
+        # TODO: Allow args.video to be either an ID or a URL
+        for video_url in args.video:
+            video_id = extract_video_id(args.video_url)
+            if video_id is None:
+                logger.error("Failed to parse video ID")
+                return
+
+            title, channel_title = get_video_title(video_id)
+            videos.append((title, channel_title, video_id))
+
+            logger.info(
+                f"Found video '{title}' from channel '{channel_title}' with ID {video_id}"
+            )
+    elif args.channel is not None:
+        videos = []
+        for channel_handle in args.channel:
+            channel_id = get_channel_id(channel_handle)
+            if channel_id is None:
+                logger.error(f"Channel {channel_handle} not found")
+                continue
+
+            logger.debug(f"Channel ID for {channel_handle} is {channel_id}")
+
+            vids = get_last_vids(channel_id, args.num)
+            videos.extend(vids)
+            for title, channel_title, video_id in vids:
+                logger.info(
+                    f"Found video '{title}' from channel '{channel_title}' with ID {video_id}"
+                )
+    else:
+        # Should not reach here
+        assert False
 
     # Download all transcripts
     for _, _, video_id in videos:
@@ -145,9 +174,11 @@ def main():
             logger.warning(f"Title not found for video ID {video_id}, skipping")
             continue
 
-        query = f"The following text is the transcript of a YouTube video titled '{title}' from the channel '{channel_title}'. Summarize the content of the video using the provided transcript:\n\n"
+        logger.info(f"Summarizing video ID {video_id}")
 
-        transcript_path = f'./data/{video_id}.txt'
+        query = f"The following text is the transcript of a YouTube video titled '{title}' from the channel '{channel_title}'. Summarize the content of the video using the provided transcript, assuming the reader of the summary is well-versed in the content and is interested in the technical details. Format your response in HTML. Do not use triple backticks to create a codeblock in your response, simply output the HTML so that your entire response can be copied and pasted without needing to remove non-HTML content. Here is the transcript:\n\n"
+
+        transcript_path = f"./data/{video_id}.txt"
         with open(transcript_path) as f:
             query += f.read()
 
@@ -178,15 +209,19 @@ def main():
             logger.error("Email password not provided")
             return
 
-        send_email(
-            args.email,
-            args.password,
-            args.email,
-            args.email,
-            "YouTube video summaries",
-            '\n\n'.join(email_body),
-            content_type='html'
-        )
+        if len(email_body) > 0:
+            send_email(
+                args.email,
+                args.password,
+                args.email,
+                args.email,
+                "YouTube video summaries",
+                "\n\n".join(email_body),
+                content_type="html",
+            )
+            logger.info("Email sent")
+        else:
+            logger.info("No new videos to summarize, not sending email")
 
 
 def send_email(
