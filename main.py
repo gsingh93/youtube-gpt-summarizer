@@ -17,7 +17,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 logging.basicConfig()
 logger = logging.getLogger(os.path.basename(__file__))
 
-youtube = build('youtube', 'v3', developerKey=os.environ['YOUTUBE_API_KEY'])
+youtube = build("youtube", "v3", developerKey=os.environ["YOUTUBE_API_KEY"])
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
@@ -28,19 +28,19 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 
 
 def parse_args():
-    parser = ArgumentParser(description='Description')
-    parser.add_argument('-d', '--download-only', action='store_true')
-    parser.add_argument('-e', '--email')
-    parser.add_argument('-p', '--password')
+    parser = ArgumentParser(description="Description")
+    parser.add_argument("-d", "--download-only", action="store_true")
+    parser.add_argument("-e", "--email")
+    parser.add_argument("-p", "--password")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-u', '--video_url')
     group.add_argument('-c', '--channel')
 
     parser.add_argument(
-        '--log-level',
-        choices=['debug', 'info', 'warning', 'error', 'critical'],
-        default='info',
+        "--log-level",
+        choices=["debug", "info", "warning", "error", "critical"],
+        default="info",
     )
 
     return parser.parse_args()
@@ -72,14 +72,16 @@ def get_last_vids(channel_handle, num_vids):
 
     return [
         (
-            item['snippet']['title'], item['snippet']['channelTitle'],
-            item['id']['videoId']
-        ) for item in response['items']
+            item["snippet"]["title"],
+            item["snippet"]["channelTitle"],
+            item["id"]["videoId"],
+        )
+        for item in response["items"]
     ]
 
 
 def extract_video_id(youtube_url):
-    pattern = r'(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+    pattern = r"(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
     match = re.search(pattern, youtube_url)
     if match:
         return match.group(1)
@@ -89,7 +91,7 @@ def extract_video_id(youtube_url):
 
 def download_transcript(video_id):
     transcript = YouTubeTranscriptApi.get_transcript(video_id)
-    text = ' '.join(x['text'] for x in transcript)
+    text = " ".join(x["text"] for x in transcript)
 
     return text
 
@@ -116,11 +118,11 @@ def main():
 
     # Download all transcripts
     for _, _, video_id in videos:
-        transcript_path = f'./data/{video_id}.txt'
+        transcript_path = f"./data/{video_id}.txt"
         if not os.path.exists(transcript_path):
             logger.info(f"Downloading transcript for video ID {video_id}")
             transcript = download_transcript(video_id)
-            with open(transcript_path, 'w') as f:
+            with open(transcript_path, "w") as f:
                 f.write(transcript)
         else:
             logger.info(
@@ -144,20 +146,16 @@ def main():
 
         logger.info(
             "Sending query with {0} tokens".format(
-                num_tokens_from_string(query, 'gpt-4-turbo')
+                num_tokens_from_string(query, "gpt-4-turbo")
             )
         )
         chat_completion = client.chat.completions.create(
             messages=[
                 {
-                    "role":
-                        "system",
-                    "content":
-                        "You are a summarization assistant, able to take long pieces of text and summarize them for users."
-                }, {
-                    "role": "user",
-                    "content": query
-                }
+                    "role": "system",
+                    "content": "You are a summarization assistant, able to take long pieces of text and summarize them for users.",
+                },
+                {"role": "user", "content": query},
             ],
             model="gpt-4-turbo",
         )
@@ -191,18 +189,18 @@ def send_email(
     to_email,
     subject,
     content,
-    content_type='plain',
-    smtp_server='smtp.gmail.com',
-    port=587
+    content_type="plain",
+    smtp_server="smtp.gmail.com",
+    port=587,
 ):
     email = EmailMessage()
-    email['From'] = from_email
-    email['To'] = to_email
-    email['Subject'] = subject
+    email["From"] = from_email
+    email["To"] = to_email
+    email["Subject"] = subject
 
-    if content_type == 'html':
+    if content_type == "html":
         email.set_content("HTML support required to see email")
-        email.add_alternative(content, subtype='html')
+        email.add_alternative(content, subtype="html")
     else:
         email.set_content(content)
 
@@ -216,5 +214,5 @@ def send_email(
     server.quit()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
