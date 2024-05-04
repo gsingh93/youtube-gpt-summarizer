@@ -29,21 +29,50 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 
 
 def parse_args():
-    parser = ArgumentParser(description="Description")
-    parser.add_argument("-d", "--download-only", action="store_true")
-    parser.add_argument("-e", "--email")
-    parser.add_argument("-p", "--password")
+    parser = ArgumentParser(
+        description="Summarize YouTube videos with GPT4 and optionally email the summaries."
+    )
+    parser.add_argument(
+        "-d",
+        "--download-only",
+        action="store_true",
+        help="Download the transcripts and exit.",
+    )
+    parser.add_argument(
+        "-e",
+        "--email",
+        help="SMTP email address for sending summarized content. This is both the sender and recipient address.",
+    )
+    parser.add_argument(
+        "-p", "--password", help="Password for the provided SMTP email address."
+    )
 
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("-v", "--video", action="append")
-    group.add_argument("-c", "--channel", action="append")
+    group.add_argument(
+        "-v",
+        "--video",
+        action="append",
+        help="YouTube video URL(s) to extract transcripts and summarize.",
+    )
+    group.add_argument(
+        "-c",
+        "--channel",
+        action="append",
+        help="YouTube channel handle(s) to extract video transcripts from and summarize.",
+    )
 
-    parser.add_argument("-n", "--num", default=1)
+    parser.add_argument(
+        "-n",
+        "--num",
+        default=1,
+        help="Number of videos to summarize from the provided channel handles.",
+    )
 
     parser.add_argument(
         "--log-level",
         choices=["debug", "info", "warning", "error", "critical"],
         default="info",
+        help="Set the logging level for the script.",
     )
 
     return parser.parse_args()
