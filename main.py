@@ -99,16 +99,24 @@ def get_channel_id(channel_handle):
 
 
 def get_last_vids(channel_id, num_vids):
-    request = youtube.search().list(
-        part="snippet", channelId=channel_id, order="date", maxResults=num_vids
+    # Every channel has an "uploads" playlist that contains all the videos uploaded to
+    # the channel
+    response = youtube.channels().list(part="contentDetails", id=channel_id).execute()
+    playlists = response["items"][0]["contentDetails"]["relatedPlaylists"]
+    uploads_playlist_id = playlists["uploads"]
+
+    # Fetch the most recent videos in the uploads playlist
+    request = youtube.playlistItems().list(
+        part="snippet", playlistId=uploads_playlist_id, maxResults=num_vids
     )
     response = request.execute()
+    logger.debug(response)
 
     return [
         (
             item["snippet"]["title"],
             item["snippet"]["channelTitle"],
-            item["id"]["videoId"],
+            item["snippet"]["resourceId"]["videoId"],
         )
         for item in response["items"]
     ]
