@@ -261,7 +261,7 @@ def main():
         if len(email_body) > 0:
             send_email(
                 args.email,
-                args.password,
+                config.smtp_password,
                 args.email,
                 args.email,
                 "YouTube video summaries",
