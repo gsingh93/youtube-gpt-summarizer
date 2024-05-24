@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import importlib
 import logging
 import re
 import shelve
+import shutil
 import smtplib
+import sys
 from argparse import ArgumentParser
 from email.message import EmailMessage
 from pathlib import Path
@@ -14,12 +17,10 @@ from googleapiclient.discovery import build
 from openai import OpenAI
 from youtube_transcript_api import YouTubeTranscriptApi
 
-import config
-
 logging.basicConfig()
 logger = logging.getLogger(Path(__file__).name)
 
-youtube = build("youtube", "v3", developerKey=config.youtube_api_key)
+youtube = None
 
 
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -73,6 +74,20 @@ def parse_args():
     )
 
     return parser.parse_args()
+
+
+def check_config():
+    src_dir = Path(__file__).parent
+    config_template = src_dir / ".config-template.py"
+    config_file = src_dir / "config.py"
+    if not config_file.exists():
+        shutil.copy(config_template, config_file)
+        logger.info(
+            "Created config.py from template, please fill in the required fields."
+        )
+        return False
+
+    return True
 
 
 def get_video_title(video_id):
@@ -145,6 +160,14 @@ def main():
         return
 
     logger.setLevel(getattr(logging, args.log_level.upper()))
+
+    if check_config():
+        globals()["config"] = importlib.import_module("config")
+    else:
+        sys.exit(1)
+
+    global youtube
+    youtube = build("youtube", "v3", developerKey=config.youtube_api_key)
 
     if args.video is not None:
         videos = []
