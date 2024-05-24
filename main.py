@@ -222,7 +222,7 @@ def main():
 
         logger.info(f"Summarizing video ID {video_id}")
 
-        query = f"The following text is the transcript of a YouTube video titled '{title}' from the channel '{channel_title}'. Summarize the content of the video using the provided transcript, assuming the reader of the summary is well-versed in the content and is interested in the technical details. Format your response in HTML. Do not use triple backticks to create a codeblock in your response, simply output the HTML so that your entire response can be copied and pasted without needing to remove non-HTML content. Here is the transcript:\n\n"
+        query = config.user_prompt.format(title=title, channel=channel_title)
 
         transcript_path = Path(f"{config.transcript_download_dir}/{video_id}.txt")
         with transcript_path.open() as f:
