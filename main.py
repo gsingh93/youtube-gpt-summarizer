@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
-import os
-import os.path
 import re
 import shelve
 import smtplib
-import sys
 from argparse import ArgumentParser
 from email.message import EmailMessage
 from pathlib import Path
@@ -20,10 +17,9 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import config
 
 logging.basicConfig()
-logger = logging.getLogger(os.path.basename(__file__))
+logger = logging.getLogger(Path(__file__).name)
 
 youtube = build("youtube", "v3", developerKey=config.youtube_api_key)
-client = OpenAI(api_key=config.openai_api_key)
 
 
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -88,17 +84,18 @@ def get_video_title(video_id):
         channel_title = response["items"][0]["snippet"]["channelTitle"]
 
         return title, channel_title
-    else:
-        return None
+
+    return None
 
 
 def get_channel_id(channel_handle):
     request = youtube.channels().list(part="id", forHandle=channel_handle)
     response = request.execute()
+
     if response["pageInfo"]["totalResults"] == 0:
         return None
-    else:
-        return response["items"][0]["id"]
+
+    return response["items"][0]["id"]
 
 
 def get_last_vids(channel_id, num_vids):
@@ -119,11 +116,11 @@ def get_last_vids(channel_id, num_vids):
 
 def extract_video_id(youtube_url):
     pattern = r"(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
-    match = re.search(pattern, youtube_url)
-    if match:
-        return match.group(1)
-    else:
-        return None
+    matches = re.search(pattern, youtube_url)
+    if matches:
+        return matches.group(1)
+
+    return None
 
 
 def download_transcript(video_id):
@@ -177,7 +174,6 @@ def main():
         assert False
 
     # Download all transcripts
-
     failed_ids = set()
     for _, _, video_id in videos:
         transcript_path = Path(f"{config.transcript_download_dir}/{video_id}.txt")
@@ -189,7 +185,7 @@ def main():
                 transcript = download_transcript(video_id)
                 with transcript_path.open("w") as f:
                     f.write(transcript)
-            except youtube_transcript_api._errors.TranscriptsDisabled:
+            except youtube_transcript_api._errors.TranscriptsDisabled:  # noqa: SLF001
                 failed_ids.add(video_id)
                 logger.exception(
                     f"Failed to download transcript for video ID {video_id}"
@@ -230,7 +226,9 @@ def main():
                 num_tokens_from_string(query, config.gpt_model)
             )
         )
-        chat_completion = client.chat.completions.create(
+
+        openai_client = OpenAI(api_key=config.openai_api_key)
+        chat_completion = openai_client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
