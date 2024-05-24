@@ -47,9 +47,6 @@ def parse_args():
         "--email",
         help="SMTP email address for sending summarized content. This is both the sender and recipient address.",
     )
-    parser.add_argument(
-        "-p", "--password", help="Password for the provided SMTP email address."
-    )
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -251,7 +248,7 @@ def main():
         logger.debug(f"Summary for video '{title}':\n\n{content}\n\n")
 
     if args.email is not None:
-        if args.password is None:
+        if not config.smtp_password:
             logger.error("Email password not provided")
             return
 
