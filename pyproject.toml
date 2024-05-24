@@ -1,0 +1,79 @@
+[tool.ruff.lint]
+ignore = [
+    "A003",
+    "E402",
+    "E501",
+    "E731",
+    "F405",
+    "F821",
+    "W505",
+]
+
+select = [
+    "A",  # flake8-builtins
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "W",  # pycodestyle
+    "C4", # flake8-comprehensions
+    "ISC", # flake8-implicit-str-concat
+    "SLOT", # flake8-slots
+    "FLY", # flynt
+    "PGH", # pygrep-hooks
+    "RET506", # flake8-return: superfluous-else-raise
+    "RET507", # flake8-return: superfluous-else-continue
+    "RET508", # flake8-return: superfluous-else-break
+    "RET505", # flake8-return: superfluous-else-return
+    "SLF", # flake8-self
+    "SIM", # flake8-simplify
+    "PTH", # flake8-use-pathlib
+]
+
+[tool.mypy]
+strict_optional = false
+check_untyped_defs = true
+allow_untyped_globals = false
+allow_redefinition = true
+allow_any_generics = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = true
+warn_unreachable = true
+show_error_context = true
+pretty = true
+show_error_codes = true
+disable_error_code = [
+    # https://github.com/python/mypy/issues/6232
+    "assignment"
+]
+
+[tool.isort]
+profile = "black"
+force_single_line = true
+
+[tool.poetry]
+name = "youtube-gpt-summarizer"
+description = "Summarize YouTube videos with LLMs"
+version = "0.0.1"
+authors = ["Gulshan Singh <gsingh2011gmail.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.8"
+google-api-python-client = "*"
+openai = "*"
+tiktoken = "*"
+youtube-transcript-api = "*"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+isort = "*"
+mypy = "*"
+ruff = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
