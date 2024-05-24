@@ -9,17 +9,20 @@ import smtplib
 import sys
 from argparse import ArgumentParser
 from email.message import EmailMessage
+from pathlib import Path
 
 import tiktoken
 from googleapiclient.discovery import build
 from openai import OpenAI
 from youtube_transcript_api import YouTubeTranscriptApi
 
+import config
+
 logging.basicConfig()
 logger = logging.getLogger(os.path.basename(__file__))
 
-youtube = build("youtube", "v3", developerKey=os.environ["YOUTUBE_API_KEY"])
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+youtube = build("youtube", "v3", developerKey=config.youtube_api_key)
+client = OpenAI(api_key=config.openai_api_key)
 
 
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -207,13 +210,13 @@ def main():
 
         query = f"The following text is the transcript of a YouTube video titled '{title}' from the channel '{channel_title}'. Summarize the content of the video using the provided transcript, assuming the reader of the summary is well-versed in the content and is interested in the technical details. Format your response in HTML. Do not use triple backticks to create a codeblock in your response, simply output the HTML so that your entire response can be copied and pasted without needing to remove non-HTML content. Here is the transcript:\n\n"
 
-        transcript_path = f"./data/{video_id}.txt"
-        with open(transcript_path) as f:
+        transcript_path = Path(f"{config.transcript_download_dir}/{video_id}.txt")
+        with transcript_path.open() as f:
             query += f.read()
 
         logger.info(
             "Sending query with {0} tokens".format(
-                num_tokens_from_string(query, "gpt-4-turbo")
+                num_tokens_from_string(query, config.gpt_model)
             )
         )
         chat_completion = client.chat.completions.create(
@@ -224,7 +227,7 @@ def main():
                 },
                 {"role": "user", "content": query},
             ],
-            model="gpt-4-turbo",
+            model=config.gpt_model,
         )
         print(chat_completion)
 
