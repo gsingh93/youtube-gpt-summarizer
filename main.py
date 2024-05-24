@@ -12,6 +12,7 @@ from email.message import EmailMessage
 from pathlib import Path
 
 import tiktoken
+import youtube_transcript_api
 from googleapiclient.discovery import build
 from openai import OpenAI
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -179,17 +180,30 @@ def main():
         assert False
 
     # Download all transcripts
+
+    failed_ids = set()
     for _, _, video_id in videos:
-        transcript_path = f"./data/{video_id}.txt"
-        if not os.path.exists(transcript_path):
+        transcript_path = Path(f"{config.transcript_download_dir}/{video_id}.txt")
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if not transcript_path.exists():
             logger.info(f"Downloading transcript for video ID {video_id}")
-            transcript = download_transcript(video_id)
-            with open(transcript_path, "w") as f:
-                f.write(transcript)
+            try:
+                transcript = download_transcript(video_id)
+                with transcript_path.open("w") as f:
+                    f.write(transcript)
+            except youtube_transcript_api._errors.TranscriptsDisabled:
+                failed_ids.add(video_id)
+                logger.exception(
+                    f"Failed to download transcript for video ID {video_id}"
+                )
         else:
             logger.info(
                 f"Transcript for video ID {video_id} already exists, skipping download"
             )
+
+    # Remove videos where downloading the transcript failed
+    videos = [v for v in videos if v[2] not in failed_ids]
 
     if args.download_only:
         return
