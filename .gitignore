@@ -2,3 +2,4 @@
 data/
 videos.db
 config.py
+__pycache__
