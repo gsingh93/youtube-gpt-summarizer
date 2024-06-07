@@ -269,7 +269,6 @@ def main():
             ],
             model=config.gpt_model,
         )
-        print(chat_completion)
 
         content = chat_completion.choices[0].message.content
 
