@@ -173,7 +173,7 @@ def main():
         videos = []
         # TODO: Allow args.video to be either an ID or a URL
         for video_url in args.video:
-            video_id = extract_video_id(args.video_url)
+            video_id = extract_video_id(video_url)
             if video_id is None:
                 logger.error("Failed to parse video ID")
                 return
