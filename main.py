@@ -155,10 +155,6 @@ def download_transcript(video_id):
 
 def main():
     args = parse_args()
-    if args.num is not None and args.channel is None:
-        logger.error("Must specify at least one channel handle when using -n/--num")
-        return
-
     logger.setLevel(getattr(logging, args.log_level.upper()))
 
     if check_config():
